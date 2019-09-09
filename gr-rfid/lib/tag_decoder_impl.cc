@@ -46,7 +46,7 @@ namespace gr
     tag_decoder_impl::tag_decoder_impl(int sample_rate, std::vector<int> output_sizes)
     : gr::block("tag_decoder", gr::io_signature::make(1, 1, sizeof(gr_complex)), gr::io_signature::makev(2, 2, output_sizes)), s_rate(sample_rate)
     {
-      char_bits = new char[128];
+      char_bits = new char[EPC_BITS];
       n_samples_TAG_BIT = TPRI_D * s_rate / pow(10,6);
     }
 
@@ -69,51 +69,21 @@ namespace gr
         if(reader_state->decoder_status == DECODER_DECODE_RN16) mode = 1;
         else if(reader_state->decoder_status == DECODER_DECODE_EPC) mode = 2;
 
-        current_round_slot = (std::to_string(reader_state->reader_stats.cur_inventory_round)+"_"+std::to_string(reader_state->reader_stats.cur_slot_number)).c_str();
-        sample_information ys ((gr_complex*)input_items[0], ninput_items[0]);
+        sample_information ys((gr_complex*)input_items[0], ninput_items[0], mode,
+          (std::to_string(reader_state->reader_stats.cur_inventory_round)+"_"+std::to_string(reader_state->reader_stats.cur_slot_number)).c_str());
+        ys.makeLog_init();
 
-        log.open(log_file_path, std::ios::app);
-        debug_log.open((debug_folder_path+"log/"+current_round_slot).c_str(), std::ios::app);
-
-        debug_log << "cur_inventory_round= " << reader_state->reader_stats.cur_inventory_round << std::endl;
-        debug_log << "cur_slot_number= " << reader_state->reader_stats.cur_slot_number << std::endl << std::endl;
-        if(mode == 1) debug_log << "##### DECODER_DECODE_RN16 #####" << std::endl;
-        else if(mode == 2) debug_log << "##### DECODER_DECODE_EPC #####" << std::endl;
-        debug_log << "n_samples_to_ungate= " << reader_state->n_samples_to_ungate << std::endl;
-        debug_log << "ninput_items[0]= " << ninput_items[0] << std::endl;
-
-        #ifdef DEBUG_TAG_DECODER_IMPL_INPUT
-        debug_input(&ys, mode, current_round_slot);
-        #endif
-
-        // detect preamble
-        int index;
-        if(mode == 1) index = tag_sync(&ys, RN16_BITS-1);
-        else if(mode == 2) index = tag_sync(&ys, EPC_BITS-1);
-
-        if(index == -1)
+        if(detect_preamble(&ys))
         {
-          log << "│ Preamble detection fail.." << std::endl;
-          debug_log << "Preamble detection fail" << std::endl << std::endl;
-          std::cout << "\t\t\t\t\tPreamble FAIL!!";
-          goto_next_slot();
+          if(mode == 1) decode_RN16(&ys, out);
+          else if(mode == 2) decode_EPC(&ys);
         }
         else
         {
-          log << "│ Preamble detected!" << std::endl;
-          #ifdef DEBUG_TAG_DECODER_IMPL_PREAMBLE
-          debug_preamble(&ys, mode, current_round_slot, index);
-          #endif
-          #ifdef DEBUG_TAG_DECODER_IMPL_SAMPLE
-          debug_sample(&ys, mode, current_round_slot, index);
-          #endif
-
-          if(mode == 1) decode_RN16(&ys, index, out);
-          else if(mode == 2) decode_EPC(&ys, index);
+          std::cout << "\t\t\t\t\tPreamble FAIL!!";
+          goto_next_slot(&ys);
         }
-
-        log.close();
-        debug_log.close();
+        debug_etc(&ys);
 
         // process for GNU RADIO
         produce(1, ninput_items[0]);
@@ -124,69 +94,51 @@ namespace gr
       return WORK_CALLED_PRODUCE;
     }
 
-    void tag_decoder_impl::decode_RN16(sample_information* ys, int index, float* out)
+    bool tag_decoder_impl::detect_preamble(sample_information* ys)
     {
-      std::vector<float> RN16_bits = tag_detection(ys, index, RN16_BITS-1);  // RN16_BITS includes one dummy bit
+      if(ys->mode() == 1) tag_sync(ys, RN16_BITS);
+      else if(ys->mode() == 2) tag_sync(ys, EPC_BITS);
+
+      ys->makeLog_preamble();
+      if(ys->index() == -1) return false;
+      else return true;
+    }
+
+    void tag_decoder_impl::decode_RN16(sample_information* ys, float* out)
+    {
+      std::vector<float> RN16_bits = tag_detection(ys, ys->index(), RN16_BITS);
 
       // write RN16_bits to the next block
-      log << "│ RN16=";
-      debug_log << "RN16= ";
       int written = 0;
-      for(int i=0 ; i<RN16_bits.size() ; i++)
+      for(int i=0 ; i<RN16_BITS ; i++)
       {
         out[written++] = RN16_bits[i];
-
-        if(i % 4 == 0)
-        {
-          log << " ";
-          debug_log << " ";
-        }
-        log << RN16_bits[i];
-        debug_log << RN16_bits[i];
       }
-      debug_log << std::endl << std::endl;
       produce(0, written);
+      ys->makeLog_RN16(RN16_bits);
 
       // go to the next state
-      log << std::endl << "├──────────────────────────────────────────────────" << std::endl;
       std::cout << "RN16 decoded | ";
       reader_state->gen2_logic_status = SEND_ACK;
     }
 
-    void tag_decoder_impl::decode_EPC(sample_information* ys, int index)
+    void tag_decoder_impl::decode_EPC(sample_information* ys)
     {
-      std::vector<float> EPC_bits = tag_detection(ys, index, EPC_BITS-1);  // EPC_BITS includes one dummy bit
+      std::vector<float> EPC_bits = tag_detection(ys, ys->index(), EPC_BITS);
 
       // convert EPC_bits from float to char in order to use Buettner's function
-      log << "│ EPC=";
-      debug_log << "EPC=";
-      for(int i=0 ; i<EPC_bits.size() ; i++)
-      {
-        if(i % 4 == 0)
-        {
-          log << " ";
-          debug_log << " ";
-        }
-        log << EPC_bits[i];
-        debug_log << EPC_bits[i];
+      for(int i=0 ; i<EPC_BITS ; i++)
         char_bits[i] = EPC_bits[i] + '0';
-        if(i % 16 == 15)
-        {
-          log << std::endl << "│     ";
-          debug_log << std::endl << "    ";
-        }
-      }
 
       // check CRC
-      if(check_crc(char_bits, 128) == 1) // success to decode EPC
+      if(check_crc(char_bits, EPC_BITS) == 1) // success to decode EPC
       {
         // calculate tag_id
         int tag_id = 0;
         for(int i=0 ; i<8 ; i++)
           tag_id += std::pow(2, 7-i) * EPC_bits[104+i];
 
-        log << " CRC check success! Tag ID= " << tag_id << std::endl;
-        debug_log << " Tag ID= " << tag_id << std::endl << std::endl;
+        ys->makeLog_EPC(EPC_bits, tag_id);
         std::cout << "\t\t\t\t\t\t\t\t\t\tTag ID= " << tag_id;
         reader_state->reader_stats.n_epc_correct+=1;
 
@@ -199,23 +151,22 @@ namespace gr
       }
       else
       {
-        log << " CRC check fail.." << std::endl;
-        debug_log << "CRC check fail" << std::endl << std::endl;
+        ys->makeLog_EPC(EPC_bits, -1);
         std::cout << "\t\t\t\t\tCRC FAIL!!";
       }
 
-      goto_next_slot();
+      goto_next_slot(ys);
     }
 
-    void tag_decoder_impl::goto_next_slot(void)
+    void tag_decoder_impl::goto_next_slot(sample_information* ys)
     {
+      ys->makeLog_nextSlot();
       reader_state->reader_stats.cur_slot_number++;
       if(reader_state->reader_stats.cur_slot_number > reader_state->reader_stats.max_slot_number)
       {
         reader_state->reader_stats.cur_inventory_round ++;
         reader_state->reader_stats.cur_slot_number = 1;
 
-        log << "└──────────────────────────────────────────────────" << std::endl;
         if(reader_state->reader_stats.cur_inventory_round > MAX_NUM_QUERIES)
         {
           reader_state->reader_stats.cur_inventory_round--;
@@ -225,85 +176,9 @@ namespace gr
       }
       else
       {
-        log << "├──────────────────────────────────────────────────" << std::endl;
         reader_state->gen2_logic_status = SEND_QUERY_REP;
       }
     }
-
-    #ifdef DEBUG_TAG_DECODER_IMPL_INPUT
-    void tag_decoder_impl::debug_input(sample_information* ys, int mode, std::string current_round_slot)
-    {
-      std::string path;
-      if(mode == 1) path = (debug_folder_path+"RN16_input/"+current_round_slot).c_str();
-      else if(mode == 2) path = (debug_folder_path+"EPC_input/"+current_round_slot).c_str();
-      else return;
-
-      std::ofstream debug_i((path+"_I").c_str(), std::ios::app);
-      std::ofstream debug_q((path+"_Q").c_str(), std::ios::app);
-      std::ofstream debug(path, std::ios::app);
-
-      for(int i=0 ; i<ys->total_size() ; i++)
-      {
-        debug_i << ys->in(i).real() << " ";
-        debug_q << ys->in(i).imag() << " ";
-        debug << ys->norm_in(i) << " ";
-      }
-
-      debug_i.close();
-      debug_q.close();
-      debug.close();
-    }
-    #endif
-
-    #ifdef DEBUG_TAG_DECODER_IMPL_PREAMBLE
-    void tag_decoder_impl::debug_preamble(sample_information* ys, int mode, std::string current_round_slot, int index)
-    {
-      std::string path;
-      if(mode == 1) path = (debug_folder_path+"RN16_preamble/"+current_round_slot).c_str();
-      else if(mode == 2) path = (debug_folder_path+"EPC_preamble/"+current_round_slot).c_str();
-      else return;
-
-      std::ofstream debug_i((path+"_I").c_str(), std::ios::app);
-      std::ofstream debug_q((path+"_Q").c_str(), std::ios::app);
-      std::ofstream debug(path, std::ios::app);
-
-      for(int i=-n_samples_TAG_BIT*TAG_PREAMBLE_BITS ; i<0 ; i++)
-      {
-        debug_i << ys->in(index+i).real() << " ";
-        debug_q << ys->in(index+i).imag() << " ";
-        debug << ys->norm_in(index+i) << " ";
-      }
-
-      debug_i.close();
-      debug_q.close();
-      debug.close();
-    }
-    #endif
-
-    #ifdef DEBUG_TAG_DECODER_IMPL_SAMPLE
-    void tag_decoder_impl::debug_sample(sample_information* ys, int mode, std::string current_round_slot, int index)
-    {
-      std::string path;
-      if(mode == 1) path = (debug_folder_path+"RN16_sample/"+current_round_slot).c_str();
-      else if(mode == 2) path = (debug_folder_path+"EPC_sample/"+current_round_slot).c_str();
-      else return;
-
-      std::ofstream debug_i((path+"_I").c_str(), std::ios::app);
-      std::ofstream debug_q((path+"_Q").c_str(), std::ios::app);
-      std::ofstream debug(path, std::ios::app);
-
-      for(int i=0 ; i<n_samples_TAG_BIT*(EPC_BITS-1) ; i++)
-      {
-        debug_i << ys->in(index+i).real() << " ";
-        debug_q << ys->in(index+i).imag() << " ";
-        debug << ys->norm_in(index+i) << " ";
-      }
-
-      debug_i.close();
-      debug_q.close();
-      debug.close();
-    }
-    #endif
 
     /* Function adapted from https://www.cgran.org/wiki/Gen2 */
     int tag_decoder_impl::check_crc(char * bits, int num_bits)
@@ -341,15 +216,58 @@ namespace gr
             crc_16 ^= 0x1021;
           }
           else
-          crc_16 <<= 1;
+            crc_16 <<= 1;
         }
       }
       crc_16 = ~crc_16;
 
       if(rcvd_crc != crc_16)
-      return -1;
+        return -1;
       else
-      return 1;
+        return 1;
+    }
+
+    // below is the debug section
+    void tag_decoder_impl::debug_etc(sample_information* ys)
+    {
+#ifdef DEBUG_TAG_DECODER_IMPL_INPUT
+      debug_etc_execute(ys, "input", 0, ys->total_size())
+#endif
+#ifdef DEBUG_TAG_DECODER_IMPL_PREAMBLE
+      debug_etc_execute(ys, "preamble", ys->index()-n_samples_TAG_BIT*TAG_PREAMBLE_BITS, 0)
+#endif
+#ifdef DEBUG_TAG_DECODER_IMPL_SAMPLE
+      if(ys->mode() == 1)
+        debug_etc_execute(ys, "sample", ys->index(), ys->index()+n_samples_TAG_BIT*RN16_BITS)
+      else if(ys->mode() == 2)
+        debug_etc_execute(ys, "sample", ys->index(), ys->index()+n_samples_TAG_BIT*EPC_BITS)
+#endif
+    }
+
+    void tag_decoder_impl::debug_etc_execute(sample_information* ys, std::string str, int start, int end)
+    {
+      std::string path = debug_folder_path;
+      if(ys->mode() == 1) path.append("RN16_");
+      else if(ys->mode() == 2) path.append("EPC_");
+      else return;
+      path.append(str);
+      path.append("/");
+      path.append(ys->round_slot());
+
+      std::ofstream debug_i((path+"_I").c_str(), std::ios::app);
+      std::ofstream debug_q((path+"_Q").c_str(), std::ios::app);
+      std::ofstream debug(path, std::ios::app);
+
+      for(int i=start ; i<end ; i++)
+      {
+        debug_i << ys->in(i).real() << " ";
+        debug_q << ys->in(i).imag() << " ";
+        debug << ys->norm_in(i) << " ";
+      }
+
+      debug_i.close();
+      debug_q.close();
+      debug.close();
     }
   }
 }

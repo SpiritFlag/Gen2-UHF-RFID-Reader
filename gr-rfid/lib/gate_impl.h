@@ -24,20 +24,52 @@
 #include <rfid/gate.h>
 #include <vector>
 #include "rfid/global_vars.h"
+#include <fstream>
+
+//#define DEBUG_GATE_IMPL_SAMPLE
 
 namespace gr {
   namespace rfid {
     class gate_impl : public gate
     {
       private:
+        class gate_log
+        {
+          private:
+            std::ofstream _log;
+            std::string _round_slot;
+#ifdef DEBUG_GATE_IMPL_SAMPLE
+            std::ofstream _detailed_log;
+#endif
+
+          public:
+            gate_log();
+            gate_log(std::string);
+            ~gate_log();
+
+            void makeLog_init(int, gr_complex);
+            void makeLog(float);
+            void makeLog_seek(void);
+            void makeLog_readCWFinish(gr_complex, float, float);
+            void makeLog_trackFinish(void);
+            void makeLog_readyFinish(void);
+            void makeLog_nextSlot(int);
+        };
 
         enum SIGNAL_STATE {NEG_EDGE, POS_EDGE};
 
-        int n_samples, n_samples_T1, n_samples_TAG_BIT;
+        int n_samples, n_samples_T1, n_samples_TAG_BIT, n_samples_PW;
 
-        double avg_amp;
+
+        gr_complex avg_cw = gr_complex(0.0,0.0);
+        gr_complex avg_dc;
+
         int max_count;
         int num_pulses;
+        bool check;
+
+        float amp_pos_threshold = 0;
+        float amp_neg_threshold = 0;
 
 
         SIGNAL_STATE signal_state;
@@ -53,7 +85,7 @@ namespace gr {
              gr_vector_const_void_star &input_items,
              gr_vector_void_star &output_items);
 
-        void gate_fail();
+        void gate_fail(int);
     };
   } // namespace rfid
 } // namespace gr

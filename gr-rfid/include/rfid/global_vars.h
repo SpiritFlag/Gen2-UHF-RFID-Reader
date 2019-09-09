@@ -31,13 +31,14 @@ namespace gr {
 
     enum STATUS               {RUNNING, TERMINATED};
     enum GEN2_LOGIC_STATUS  {SEND_QUERY, SEND_ACK, SEND_QUERY_REP, IDLE, SEND_CW, START, SEND_QUERY_ADJUST, SEND_NAK_QR, SEND_NAK_Q, POWER_DOWN};
-    enum GATE_STATUS        {GATE_START, GATE_TRACK, GATE_READY, GATE_OPEN, GATE_CLOSED, GATE_SEEK, GATE_SEEK_RN16, GATE_SEEK_EPC};
+    enum GATE_STATUS        {GATE_START, GATE_READ_CW, GATE_TRACK, GATE_READY, GATE_OPEN, GATE_CLOSED, GATE_SEEK, GATE_SEEK_RN16, GATE_SEEK_EPC};
     enum DECODER_STATUS     {DECODER_DECODE_RN16, DECODER_DECODE_EPC, DECODER_TERMINATED};
 
     struct READER_STATS
     {
       int n_queries_sent;
       int n_ack_sent;
+      int n_gate_fail;
 
       int cur_inventory_round;
       int cur_slot_number;
@@ -110,8 +111,8 @@ namespace gr {
     // Number of bits
     const int PILOT_TONE          = 12;  // Optional
     const int TAG_PREAMBLE_BITS  = 6;   // Number of preamble bits
-    const int RN16_BITS          = 17;  // Dummy bit at the end
-    const int EPC_BITS            = 129;  // PC + EPC + CRC16 + Dummy = 6 + 16 + 96 + 16 + 1 = 135
+    const int RN16_BITS          = 16;
+    const int EPC_BITS            = 128;
     const int QUERY_LENGTH        = 22;  // Query length in bits
     const int EXTRA_BITS          = 12; // extra bits to ungate
 
@@ -163,6 +164,8 @@ namespace gr {
     const std::string log_file_path = "log";
     const std::string result_file_path = "result";
     const std::string debug_folder_path = "debug_data/";
+    const bool make_log = true;
+    const bool make_detailed_log = false;
   } // namespace rfid
 } // namespace gr
 

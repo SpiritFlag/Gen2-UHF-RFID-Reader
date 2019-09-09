@@ -178,36 +178,19 @@ namespace gr
       int consumed = 0;
       int written = 0;
 
-      float tp[2]={1,0};
-
       if(reader_state->gen2_logic_status != IDLE)
       {
-        log.open(log_file_path, std::ios::app);
+        reader_log ys;
 
         if(reader_state->gen2_logic_status == START)
         {
-          log << "preamble= " << n_delim_s + n_data0_s + n_data0_s + n_data1_s + n_trcal_s << std::endl;
-          log << "frame_sync= " << n_delim_s + n_data0_s + n_data0_s + n_data1_s << std::endl;
-          log << "delim= " << n_delim_s << std::endl;
-          log << "data_0= " << n_data0_s << std::endl;
-          log << "rtcal= " << n_data0_s + n_data1_s << std::endl;
-          log << "trcal= " << n_trcal_s << std::endl << std::endl;
-
-          log << "cw_query= " << n_cwquery_s << std::endl;
-          log << "cw_ack= " << n_cwack_s << std::endl;
-          log << "T1= " << T1_D / sample_d << std::endl;
-          log << "T2= " << T2_D / sample_d << std::endl;
-          log << "RN16= " << RN16_D / sample_d << std::endl;
-          log << "EPC= " << EPC_D / sample_d << std::endl << std::endl;
-
           transmit(out, &written, cw_ack);
-          out[written++] = 0;
           reader_state->gen2_logic_status = IDLE;
+          ys.makeLog_init(n_delim_s, n_data0_s, n_data1_s, n_trcal_s, n_cwquery_s, n_cwack_s, sample_d);
         }
         else if(reader_state->gen2_logic_status == SEND_QUERY)
         {
-          log << std::endl << "┌──────────────────────────────────────────────────" << std::endl;
-          log << "│ Inventory Round: " << reader_state->reader_stats.cur_inventory_round << " | Slot Number: " << reader_state->reader_stats.cur_slot_number << std::endl;
+          ys.makeLog_query(false);
           std::cout << std::endl << "[" << reader_state->reader_stats.cur_inventory_round << "_" << reader_state->reader_stats.cur_slot_number << "] ";
           reader_state->reader_stats.n_queries_sent +=1;
 
@@ -215,21 +198,18 @@ namespace gr
           reader_state->decoder_status = DECODER_DECODE_RN16;
           reader_state->gate_status    = GATE_SEEK_RN16;
 
-          for(int i=0 ; i<100 ; i++) out[written++] = 1;
+          transmit(out, &written, cw);
           transmit(out, &written, preamble);
           gen_query_bits();
           transmit_bits(out, &written, query_bits);
           transmit(out, &written, cw_query);
 
-          log << "│ Send Query | Q= " << FIXED_Q << std::endl;
-          log << "├──────────────────────────────────────────────────" << std::endl;
           std::cout << "Query(Q=" << FIXED_Q << ") | ";
-
           reader_state->gen2_logic_status = IDLE;
         }
         else if(reader_state->gen2_logic_status == SEND_QUERY_REP)
         {
-          log << "│ Inventory Round: " << reader_state->reader_stats.cur_inventory_round << " | Slot Number: " << reader_state->reader_stats.cur_slot_number << std::endl;
+          ys.makeLog_query(true);
           std::cout << std::endl << "[" << reader_state->reader_stats.cur_inventory_round << "_" << reader_state->reader_stats.cur_slot_number << "] ";
           reader_state->reader_stats.n_queries_sent +=1;
 
@@ -237,42 +217,37 @@ namespace gr
           reader_state->decoder_status = DECODER_DECODE_RN16;
           reader_state->gate_status    = GATE_SEEK_RN16;
 
-          for(int i=0 ; i<100 ; i++) out[written++] = 1;
+          transmit(out, &written, cw);
           transmit(out, &written, query_rep);
           transmit(out, &written, cw_query);
 
-          log << "│ Send QueryRep" << std::endl;
-          log << "├──────────────────────────────────────────────────" << std::endl;
           std::cout << "QueryRep | ";
-
           reader_state->gen2_logic_status = IDLE;
         }
-        else if(reader_state->gen2_logic_status == SEND_ACK && ninput_items[0] == RN16_BITS - 1)
+        else if(reader_state->gen2_logic_status == SEND_ACK && ninput_items[0] == RN16_BITS)
         {
+          ys.makeLog_ack();
           reader_state->reader_stats.n_ack_sent +=1;
 
           // Controls the other two blocks
           reader_state->decoder_status = DECODER_DECODE_EPC;
           reader_state->gate_status    = GATE_SEEK_EPC;
 
-          for(int i=0 ; i<100 ; i++) out[written++] = 1;
+          transmit(out, &written, cw);
           transmit(out, &written, frame_sync);
           gen_ack_bits(in);
           transmit_bits(out, &written, ack_bits);
           transmit(out, &written, cw_ack);
 
           reader_state->reader_stats.ack_sent.push_back((std::to_string(reader_state->reader_stats.cur_inventory_round)+"_"+std::to_string(reader_state->reader_stats.cur_slot_number)).c_str());
-          log << "│ Send ACK" << std::endl;
-          log << "├──────────────────────────────────────────────────" << std::endl;
           std::cout << "ACK | ";
 
           consumed = ninput_items[0];
           reader_state->gen2_logic_status = IDLE;
         }
-        log.close();
       }
 
-      consume_each (consumed);
+      consume_each(consumed);
       return written;
     }
 
@@ -295,6 +270,7 @@ namespace gr
         result << reader_state->reader_stats.ack_sent[i] << " ";
       result << std::endl << "│ Current Inventory round: " << reader_state->reader_stats.cur_inventory_round << std::endl;
       result << "├──────────────────────────────────────────────────" << std::endl;
+      result << "│ Number of gate fail: " << reader_state->reader_stats.n_gate_fail << std::endl;
       result << "│ Number of correctly decoded EPC: " << reader_state->reader_stats.n_epc_correct << std::endl;
       result << "│ Number of unique tags: " << reader_state->reader_stats.tag_reads.size() << std::endl;
 
@@ -383,7 +359,7 @@ namespace gr
         memcpy(crc, tmp, 5*sizeof(float));
       }
       for (int i = 4; i >= 0; i--)
-      q.push_back(crc[i]);
+        q.push_back(crc[i]);
     }
   }
 }
