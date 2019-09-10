@@ -10,6 +10,11 @@ mkdir RN16_sample EPC_sample
 mkdir gate
 cd ../
 
-rm log result
+rm log result databit sample Isample Qsample
 python reader.py
 cat result
+
+rm numbit graph.py
+python decoding.py
+
+python plot_iq.py Isample Qsample 5 0

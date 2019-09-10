@@ -45,7 +45,7 @@ namespace gr {
       reader_state-> status           = RUNNING;
       reader_state-> gen2_logic_status= START;
       reader_state-> gate_status       = GATE_START;
-      reader_state-> decoder_status   = DECODER_DECODE_RN16;
+      reader_state-> decoder_status   = DECODER_DECODE_EPC;
 
       reader_state-> reader_stats.max_slot_number = pow(2,FIXED_Q);
 

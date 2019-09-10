@@ -39,7 +39,7 @@
 
 #define MAX_SEARCH_READ_CW (20000)  // (from) tag command end (to) reader pulse start
 #define MAX_SEARCH_TRACK (5000)    // (from) reader pusle start (to) MIN_PULSE'th reader pulse
-#define MAX_SEARCH_READY (5000)     // (from) MIN_PULSE'th reader pulse (to) tag command start
+#define MAX_SEARCH_READY (30000)     // (from) MIN_PULSE'th reader pulse (to) tag command start
 
 namespace gr
 {
@@ -141,7 +141,7 @@ namespace gr
           {
             ys.makeLog(std::abs(sample));
             if(std::abs(sample) < AMP_LOWBOUND) continue;
-            
+
             if(--max_count <= 0)
             {
               gate_fail(1);

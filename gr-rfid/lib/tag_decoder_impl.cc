@@ -59,31 +59,36 @@ namespace gr
 
     int tag_decoder_impl::general_work(int noutput_items, gr_vector_int& ninput_items, gr_vector_const_void_star& input_items, gr_vector_void_star& output_items)
     {
+      const gr_complex *in = (const gr_complex *) input_items[0];
       float* out = (float *)output_items[0];
       int consumed = 0;
 
       // Processing only after n_samples_to_ungate are available and we need to decode
       if(ninput_items[0] >= reader_state->n_samples_to_ungate)
       {
-        int mode = -1;
-        if(reader_state->decoder_status == DECODER_DECODE_RN16) mode = 1;
-        else if(reader_state->decoder_status == DECODER_DECODE_EPC) mode = 2;
-
-        sample_information ys((gr_complex*)input_items[0], ninput_items[0], mode,
+        sample_information ys((gr_complex*)input_items[0], ninput_items[0], 2,
           (std::to_string(reader_state->reader_stats.cur_inventory_round)+"_"+std::to_string(reader_state->reader_stats.cur_slot_number)).c_str());
         ys.makeLog_init();
 
-        if(detect_preamble(&ys))
-        {
-          if(mode == 1) decode_RN16(&ys, out);
-          else if(mode == 2) decode_EPC(&ys);
-        }
-        else
-        {
-          std::cout << "\t\t\t\t\tPreamble FAIL!!";
-          goto_next_slot(&ys);
-        }
-        debug_etc(&ys);
+        std::ofstream debug("sample", std::ios::app);
+        for(int i=0 ; i<ninput_items[0] ; i++)
+          debug << std::abs(in[i]) << " ";
+        debug << std::endl;
+        debug.close();
+
+        debug.open("Isample", std::ios::app);
+        for(int i=0 ; i<ninput_items[0] ; i++)
+          debug << in[i].real() << " ";
+        debug << std::endl;
+        debug.close();
+
+        debug.open("Qsample", std::ios::app);
+        for(int i=0 ; i<ninput_items[0] ; i++)
+          debug << in[i].imag() << " ";
+        debug << std::endl;
+        debug.close();
+
+        goto_next_slot(&ys);
 
         // process for GNU RADIO
         produce(1, ninput_items[0]);
