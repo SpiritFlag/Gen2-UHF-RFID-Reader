@@ -1,5 +1,10 @@
+*.pyc
+gr-rfid/apps/RN
+gr-rfid/apps/label
+gr-rfid/apps/abs_signal
+gr-rfid/apps/Isignal
+gr-rfid/apps/Qsignal
 gr-rfid/apps/debug_data/
-gr-rfid/apps/graph/
 gr-rfid/apps/log
 gr-rfid/apps/result
 gr-rfid/build/

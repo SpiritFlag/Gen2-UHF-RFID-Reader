@@ -1,7 +1,13 @@
-mkdir exp_log/$1
-mv -i databit exp_log/$1/databit_$2
-mv -i sample exp_log/$1/sample_$2
-mv -i sample_I exp_log/$1/Isample_$2
-mv -i sample_Q exp_log/$1/Qsample_$2
-mv -i decoded_bit exp_log/$1/numbit_$2
-mv -i graph.png exp_log/$1/graph_$2.png
+mkdir ~/exp_log/$1
+
+mv -i RN ~/exp_log/$1/RN
+mv -i label ~/exp_log/$1/label
+mv -i abs_signal ~/exp_log/$1/abs_signal
+mv -i Isignal ~/exp_log/$1/Isignal
+mv -i Qsignal ~/exp_log/$1/Qsignal
+
+#mv -i RN ~/exp_log/$1/RN_$2
+#mv -i label ~/exp_log/$1/label_$2
+#mv -i abs_signal ~/exp_log/$1/abs_signal_$2
+#mv -i Isignal ~/exp_log/$1/Isignal_$2
+#mv -i Qsignal ~/exp_log/$1/Qsignal_$2

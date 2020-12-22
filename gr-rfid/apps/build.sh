@@ -1,4 +1,3 @@
-git pull origin 1909_experiment
 cd ../build
 cmake ../
 make

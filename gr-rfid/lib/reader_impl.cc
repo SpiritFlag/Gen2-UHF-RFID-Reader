@@ -161,6 +161,30 @@ namespace gr
 
       gen_query_bits();
       gen_query_adjust_bits();
+
+      use_random_rn = true;
+      //use_random_rn = false;
+
+      // random round number
+      if(use_random_rn == true)
+      {
+        srand(time(NULL));
+        std::ofstream debug("RN", std::ios::app);
+
+        for(int i=0 ; i<MAX_NUM_QUERIES ; i++)
+        {
+          int rn = rand() % (MAX_POSSIBLE_ROUND + 1);
+          if(i == 0 || find(random_rn_list.begin(), random_rn_list.end(), rn) == random_rn_list.end())
+          {
+            random_rn_list.push_back(rn);
+            debug << rn << " ";
+          }
+          else i--;  // retry
+        }
+
+        debug << std::endl;
+        debug.close();
+      }
     }
 
     void reader_impl::gen_query_bits()
@@ -238,7 +262,17 @@ namespace gr
         else if(reader_state->gen2_logic_status == SEND_QUERY)
         {
           ys.makeLog_query(false);
-          std::cout << std::endl << "[" << reader_state->reader_stats.cur_inventory_round << "_" << reader_state->reader_stats.cur_slot_number << "] ";
+          int cur_round;
+          if(use_random_rn == true)
+          {
+            cur_round = random_rn_list[reader_state->reader_stats.cur_inventory_round - 1];
+            std::cout << std::endl << "[" << reader_state->reader_stats.cur_inventory_round << "_" << cur_round << "]\t";
+          }
+          else
+          {
+            cur_round = reader_state->reader_stats.cur_inventory_round;
+            std::cout << std::endl << "[" << reader_state->reader_stats.cur_inventory_round << "]\t";
+          }
           reader_state->reader_stats.n_queries_sent +=1;
 
           // Controls the other two blocks
@@ -259,7 +293,6 @@ namespace gr
           my_query.push_back(0);  // dummy (4-bits)
 
           std::vector<int> round_bin;
-          int cur_round = reader_state->reader_stats.cur_inventory_round;
           while(cur_round)
           {
             if(cur_round % 2) round_bin.push_back(1);
@@ -317,7 +350,7 @@ namespace gr
             else my_query.push_back(0);
           }
 
-          std::ofstream debug("databit", std::ios::app);
+          std::ofstream debug("label", std::ios::app);
           for(int i=8 ; i<my_query.size() ; i++)  // do not backup command 8-bits
             debug << my_query[i];
           debug << std::endl;

@@ -256,6 +256,19 @@ namespace gr
       if(type == 1) std::cout << "\tPulse detection FAIL!!";
       else if(type == 2) std::cout << "\t\tCommand detection FAIL!!";
       else if(type == 3) std::cout << "\t\t\tToo long command!!";
+
+      std::ofstream debug("abs_signal", std::ios::app);
+      debug << std::endl;
+      debug.close();
+
+      debug.open("Isignal", std::ios::app);
+      debug << std::endl;
+      debug.close();
+
+      debug.open("Qsignal", std::ios::app);
+      debug << std::endl;
+      debug.close();
+
       reader_state->reader_stats.n_gate_fail++;
       reader_state->gate_status = GATE_CLOSED;
 

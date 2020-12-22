@@ -52,6 +52,8 @@ namespace gr
         float sample_d, n_data0_s, n_data1_s, n_cw_s, n_pw_s, n_delim_s, n_trcal_s;
         std::vector<float> data_0, data_1, cw, cw_ack, cw_query, delim, frame_sync, preamble, rtcal, trcal, query_bits, ack_bits, query_rep,nak, query_adjust_bits,p_down;
         int q_change; // 0-> increment, 1-> unchanged, 2-> decrement
+        bool use_random_rn;
+        std::vector<int> random_rn_list;
 
         void gen_query_bits();
         void gen_ack_bits(const float * in);

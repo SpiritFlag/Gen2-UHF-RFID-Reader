@@ -70,19 +70,19 @@ namespace gr
           (std::to_string(reader_state->reader_stats.cur_inventory_round)+"_"+std::to_string(reader_state->reader_stats.cur_slot_number)).c_str());
         ys.makeLog_init();
 
-        std::ofstream debug("sample", std::ios::app);
+        std::ofstream debug("abs_signal", std::ios::app);
         for(int i=0 ; i<ninput_items[0] ; i++)
           debug << std::abs(in[i]) << " ";
         debug << std::endl;
         debug.close();
 
-        debug.open("Isample", std::ios::app);
+        debug.open("Isignal", std::ios::app);
         for(int i=0 ; i<ninput_items[0] ; i++)
           debug << in[i].real() << " ";
         debug << std::endl;
         debug.close();
 
-        debug.open("Qsample", std::ios::app);
+        debug.open("Qsignal", std::ios::app);
         for(int i=0 ; i<ninput_items[0] ; i++)
           debug << in[i].imag() << " ";
         debug << std::endl;

@@ -10,11 +10,8 @@ mkdir RN16_sample EPC_sample
 mkdir gate
 cd ../
 
-rm log result databit sample Isample Qsample
+rm log result RN label abs_signal Isignal Qsignal
 python reader.py
 cat result
 
-rm numbit graph.py
-python decoding.py
-
-python plot_iq.py Isample Qsample 5 0
+python3 rule_based_decoding/main.py $1 50 3
