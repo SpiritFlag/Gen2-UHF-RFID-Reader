@@ -21,11 +21,11 @@ if __name__ == "__main__":
     signal = IQconvert(Isignal, Qsignal, len(label))
 
     success = 0
+    n_error = 0
 
     for idx in tqdm(range(len(label)), desc="TESTING", ncols=100, unit=" signal"):
       fail = False
       error_idx = -1
-      n_error = 0
 
       predict = decode_data(signal[idx], constant_bit_len, n_shift)
 
@@ -39,7 +39,10 @@ if __name__ == "__main__":
       if fail is False:
         success += 1
 
-    print(f"\n\tRESULT=\t{success:4d} / {len(label):4d} ({100*success/len(label):6.2f}%)\n\n")
+      print(f"\tacc: {success/(idx+1):6.4f}\tBER: {n_error/((idx+1)*n_bit_data):6.4f}", end="\r")
+
+    print(f"\n\tRESULT=\t{success:5d} / {len(label):5d} ({100*success/len(label):5.2f}%)")
+    print(f"\tBER=\t{n_error:5d} / {int(len(label)*n_bit_data):5d} ({100*n_error/(len(label)*n_bit_data):5.2f}%)\n\n")
 
   except Exception as ex:
     _, _, tb = sys.exc_info()

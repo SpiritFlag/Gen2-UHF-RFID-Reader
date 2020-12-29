@@ -11,6 +11,7 @@ mkdir gate
 cd ../
 
 rm log result RN label abs_signal Isignal Qsignal
+#sleep 10
 python reader.py
 cat result
 
