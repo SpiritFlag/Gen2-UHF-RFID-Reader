@@ -13,20 +13,16 @@ namespace gr
     {
       _in = NULL;
       _total_size = 0;
-      _norm_in.clear();
-
       _corr = 0;
+      _complex_corr = std::complex<float>(0.0,0.0);
+
     }
 
     tag_decoder_impl::sample_information::sample_information(gr_complex* __in, int __total_size)
     // mode: 0:RN16, 1:EPC
     {
-      _in = __in;
-      _total_size = __total_size;
-      _norm_in.clear();
-      for(int i=0 ; i<_total_size ; i++)
-        _norm_in.push_back(std::sqrt(std::norm(_in[i])));
-
+      this->_in = __in;
+      this->_total_size = __total_size;
       _corr = 0;
       _complex_corr = std::complex<float>(0.0,0.0);
     }
@@ -55,7 +51,7 @@ namespace gr
 
     float tag_decoder_impl::sample_information::norm_in(int index)
     {
-      return _norm_in[index];
+      return std::abs(_in[index]);
     }
 
     float tag_decoder_impl::sample_information::corr(void)
