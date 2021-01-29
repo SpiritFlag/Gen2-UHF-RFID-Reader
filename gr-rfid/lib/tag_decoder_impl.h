@@ -31,9 +31,7 @@
 //#define DEBUG_TAG_DECODER_IMPL_INPUT
 //#define DEBUG_TAG_DECODER_IMPL_PREAMBLE
 //#define DEBUG_TAG_DECODER_IMPL_SAMPLE
-
-#define __DEBUG_LOG__
-
+//define __DEBUG_LOG__
 
 namespace gr
 {
@@ -43,18 +41,22 @@ namespace gr
     {
       private:
         float n_samples_TAG_BIT;
+        int n_samples_T1;
         int s_rate;
         char * char_bits;
+        int index;
+
+        bool flag_preamble = false;
 
         class sample_information
         {
           private:
             gr_complex* _in;
             int _total_size;
-            std::vector<float> _norm_in;
-
             float _corr;
             gr_complex _complex_corr;
+            gr_complex _avg_ampl;
+            gr_complex _stddev_ampl;
 
           public:
             sample_information();
@@ -70,6 +72,8 @@ namespace gr
 
             float corr(void);
             gr_complex complex_corr(void);
+            gr_complex avg_ampl(void);
+            gr_complex stddev_ampl(void);
         };
 
         // tag_decoder_impl.cc
@@ -79,10 +83,12 @@ namespace gr
         int check_crc(char*, int);
 
         // tag_decoder_decoder.cc
-        int tag_sync(sample_information*, int);
+        int tag_sync(sample_information*);
         std::vector<float> tag_detection(sample_information*, int, int);
         int determine_first_mask_level(sample_information*, int);
-        int decode_single_bit(sample_information* in, int, int, int);
+        std::complex<double> mask_correlation(sample_information *, const float[], const int, int index = 0,int mask_level = 1);
+        std::complex<double> mask_shift_one_sample(sample_information *, const float[], const int, std::complex<double>, int prev_index = 0, int mask_level = 1);
+
 
         // debug_message
         std::string current_round_slot;

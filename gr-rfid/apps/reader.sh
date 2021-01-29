@@ -1,5 +1,7 @@
 #! /bin/sh
 rm -r debug_data
+rm iq_log.csv
+rm gateOpenTracker/*
 mkdir debug_data
 cd debug_data
 mkdir log

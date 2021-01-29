@@ -23,6 +23,7 @@
 
 #include <rfid/api.h>
 #include <map>
+#include <vector>
 #include <sys/time.h>
 #include <fstream>
 
@@ -33,6 +34,8 @@ namespace gr {
     enum GEN2_LOGIC_STATUS  {SEND_QUERY, SEND_ACK, SEND_QUERY_REP, IDLE, SEND_CW, START, SEND_QUERY_ADJUST, SEND_NAK_QR, SEND_NAK_Q, POWER_DOWN};
     enum GATE_STATUS        {GATE_START, GATE_TRACK, GATE_READY, GATE_OPEN, GATE_CLOSED, GATE_SEEK, GATE_SEEK_RN16, GATE_SEEK_EPC};
     enum DECODER_STATUS     {DECODER_DECODE_RN16, DECODER_DECODE_EPC, DECODER_TERMINATED};
+    enum READER_SENT_STATUS {PREAMBLE, FRAME_SYNC};
+
 
     struct READER_STATS
     {
@@ -60,9 +63,9 @@ namespace gr {
       GATE_STATUS         gate_status;
       DECODER_STATUS       decoder_status;
       READER_STATS         reader_stats;
+      READER_SENT_STATUS   reader_sent_status;
 
-
-
+      std::vector<uint8_t> sent_bit;
       std::vector<float> magn_squared_samples; // used for sync
       int n_samples_to_ungate; // used by the GATE and DECODER block
     };
@@ -74,7 +77,7 @@ namespace gr {
 
     // Termination criteria
     // const int MAX_INVENTORY_ROUND = 50;
-    const int MAX_NUM_QUERIES     = 2000;     // Stop after MAX_NUM_QUERIES have been sent
+    const int MAX_NUM_QUERIES     = 16000;     // Stop after MAX_NUM_QUERIES have been sent
 
     // valid values for Q
     const int Q_VALUE [16][4] =
@@ -92,12 +95,12 @@ namespace gr {
     // Duration in us
     const int DR_D          = 8;
     const float BLF_D     = T_READER_FREQ / pow(10,6);  // 0.04
-    const int TPRI_D      = 1 / BLF_D;  // 25us
-    const int PW_D        = 24; // Half Tari
-    const int RTCAL_D     = 6 * PW_D; // 72us
-    const int TRCAL_D     = DR_D / BLF_D; // 200us
-    const int T1_D        = std::max(RTCAL_D, 10 * TPRI_D);  // 250us
-    const int T2_D        = 20 * TPRI_D;  // 500us
+    const float TPRI_D      = 1 / BLF_D;  // 25us
+    const float PW_D        = 24; // Half Tari
+    const float RTCAL_D     = 6 * PW_D; // 72us
+    const float TRCAL_D     = DR_D / BLF_D; // 200us
+    const float T1_D        = std::max(RTCAL_D, 10 * TPRI_D);  // 250us
+    const float T2_D        = 20 * TPRI_D;  // 500us
 
     const int CW_D         = 250;    // Carrier wave
     const int P_DOWN_D     = 2000;    // power down

@@ -4,6 +4,7 @@
 #endif
 
 #include "tag_decoder_impl.h"
+#include <cmath>
 
 namespace gr
 {
@@ -13,22 +14,35 @@ namespace gr
     {
       _in = NULL;
       _total_size = 0;
-      _norm_in.clear();
-
       _corr = 0;
+      _complex_corr = std::complex<float>(0.0,0.0);
+      _avg_ampl = std::complex<float>(0.0,0.0);
     }
 
     tag_decoder_impl::sample_information::sample_information(gr_complex* __in, int __total_size)
     // mode: 0:RN16, 1:EPC
     {
-      _in = __in;
-      _total_size = __total_size;
-      _norm_in.clear();
-      for(int i=0 ; i<_total_size ; i++)
-        _norm_in.push_back(std::sqrt(std::norm(_in[i])));
-
+      this->_in = __in;
+      this->_total_size = __total_size;
       _corr = 0;
       _complex_corr = std::complex<float>(0.0,0.0);
+      _avg_ampl = std::complex<float>(0.0,0.0);
+      if(_total_size > 200){
+        //calculate ampl average
+        for(int i = 0; i < 200; i++){
+          _avg_ampl += _in[i];
+        }
+        _avg_ampl /= 200;
+
+        //calculate ampl stddev
+        for(int i = 0; i < 200; i++){
+          gr_complex tmp_complex = _in[i] - _avg_ampl;
+          _stddev_ampl += std::complex<float>(std::pow(tmp_complex.real(),2), std::pow(tmp_complex.imag(),2));
+        }
+        _stddev_ampl /= 200;
+        _stddev_ampl = std::complex<float>(std::pow(_stddev_ampl.real(),0.5), std::pow(_stddev_ampl.imag(),0.5));
+      }
+      
     }
 
     tag_decoder_impl::sample_information::~sample_information(){}
@@ -45,7 +59,7 @@ namespace gr
 
     gr_complex tag_decoder_impl::sample_information::in(int index)
     {
-      return _in[index];
+      return _in[index]-_avg_ampl;
     }
 
     int tag_decoder_impl::sample_information::total_size(void)
@@ -55,7 +69,7 @@ namespace gr
 
     float tag_decoder_impl::sample_information::norm_in(int index)
     {
-      return _norm_in[index];
+      return std::abs(_in[index]);
     }
 
     float tag_decoder_impl::sample_information::corr(void)
@@ -66,6 +80,14 @@ namespace gr
     gr_complex tag_decoder_impl::sample_information::complex_corr(void)
     {
       return _complex_corr;
+    }
+
+    gr_complex tag_decoder_impl::sample_information::avg_ampl(void){
+      return _avg_ampl;
+    }
+
+    gr_complex tag_decoder_impl::sample_information::stddev_ampl(void){
+      return _stddev_ampl;
     }
   }
 }

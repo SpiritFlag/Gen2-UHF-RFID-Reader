@@ -122,7 +122,7 @@ namespace gr
 
       query_bits.resize(0);
       query_bits.insert(query_bits.end(), &QUERY_CODE[0], &QUERY_CODE[4]);
-
+/*
       query_bits.push_back(DR);
       query_bits.insert(query_bits.end(), &M[0], &M[2]);
       query_bits.push_back(TREXT);
@@ -131,6 +131,29 @@ namespace gr
       query_bits.push_back(TARGET);
 
       query_bits.insert(query_bits.end(), &Q_VALUE[FIXED_Q][0], &Q_VALUE[FIXED_Q][4]);
+      */
+
+      //insert round number instead of normal query bits
+      std::vector<float> tmp_round;
+      tmp_round.resize(0);
+
+      int round = reader_state->reader_stats.cur_inventory_round;
+      for(int i = 0; i< 12; i++){
+        if((round & 0x1) == 1){
+          tmp_round.push_back(1);
+        }else{
+          tmp_round.push_back(0);
+        }
+        round = round >> 1;
+      }
+
+      for(int i = 0; i< 12; i++){
+        query_bits.push_back(tmp_round.back());
+        tmp_round.pop_back();
+      }
+      query_bits.push_back(0);
+
+
       crc_append(query_bits);
     }
 
@@ -164,8 +187,10 @@ namespace gr
 
     void reader_impl::transmit_bits(float* out, int* written, std::vector<float> bits)
     {
+      reader_state-> sent_bit.resize(bits.size());
       for(int i=0 ; i<bits.size() ; i++)
       {
+        reader_state-> sent_bit[i] = bits[i];
         if(bits[i] == 1) transmit(out, written, data_1);
         else transmit(out, written, data_0);
       }
@@ -177,6 +202,8 @@ namespace gr
       float* out = (float*)output_items[0];
       int consumed = 0;
       int written = 0;
+
+      float tp[2]={1,0};
 
       if(reader_state->gen2_logic_status != IDLE)
       {
@@ -199,11 +226,12 @@ namespace gr
           log << "EPC= " << EPC_D / sample_d << std::endl << std::endl;
 
           transmit(out, &written, cw_ack);
-
           reader_state->gen2_logic_status = IDLE;
         }
         else if(reader_state->gen2_logic_status == SEND_QUERY)
         {
+          reader_state->gen2_logic_status = IDLE;
+
           log << std::endl << "┌──────────────────────────────────────────────────" << std::endl;
           log << "│ Inventory Round: " << reader_state->reader_stats.cur_inventory_round << " | Slot Number: " << reader_state->reader_stats.cur_slot_number << std::endl;
           std::cout << std::endl << "[" << reader_state->reader_stats.cur_inventory_round << "_" << reader_state->reader_stats.cur_slot_number << "] ";
@@ -212,18 +240,19 @@ namespace gr
           // Controls the other two blocks
           reader_state->decoder_status = DECODER_DECODE_RN16;
           reader_state->gate_status    = GATE_SEEK_RN16;
+          reader_state->reader_sent_status = PREAMBLE;
 
           transmit(out, &written, cw);
           transmit(out, &written, preamble);
           gen_query_bits();
           transmit_bits(out, &written, query_bits);
+
+
           transmit(out, &written, cw_query);
 
           log << "│ Send Query | Q= " << FIXED_Q << std::endl;
           log << "├──────────────────────────────────────────────────" << std::endl;
           std::cout << "Query(Q=" << FIXED_Q << ") | ";
-
-          reader_state->gen2_logic_status = IDLE;
         }
         else if(reader_state->gen2_logic_status == SEND_QUERY_REP)
         {
@@ -234,6 +263,7 @@ namespace gr
           // Controls the other two blocks
           reader_state->decoder_status = DECODER_DECODE_RN16;
           reader_state->gate_status    = GATE_SEEK_RN16;
+          reader_state->reader_sent_status = FRAME_SYNC;
 
           transmit(out, &written, cw);
           transmit(out, &written, query_rep);
@@ -252,6 +282,7 @@ namespace gr
           // Controls the other two blocks
           reader_state->decoder_status = DECODER_DECODE_EPC;
           reader_state->gate_status    = GATE_SEEK_EPC;
+          reader_state->reader_sent_status = FRAME_SYNC;
 
           transmit(out, &written, cw);
           transmit(out, &written, frame_sync);

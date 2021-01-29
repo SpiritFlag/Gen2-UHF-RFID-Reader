@@ -1,27 +1,26 @@
 /* -*- c++ -*- */
 /*
-* Copyright 2015 <Nikos Kargas (nkargas@isc.tuc.gr)>.
-*
-* This is free software; you can redistribute it and/or modify
-* it under the terms of the GNU General Public License as published by
-* the Free Software Foundation; either version 3, or (at your option)
-* any later version.
-*
-* This software is distributed in the hope that it will be useful,
-* but WITHOUT ANY WARRANTY; without even the implied warranty of
-* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-* GNU General Public License for more details.
-*
-* You should have received a copy of the GNU General Public License
-* along with this software; see the file COPYING.  If not, write to
-* the Free Software Foundation, Inc., 51 Franklin Street,
-* Boston, MA 02110-1301, USA.
-*/
+ * Copyright 2015 <Nikos Kargas (nkargas@isc.tuc.gr)>.
+ *
+ * This is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 3, or (at your option)
+ * any later version.
+ *
+ * This software is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this software; see the file COPYING.  If not, write to
+ * the Free Software Foundation, Inc., 51 Franklin Street,
+ * Boston, MA 02110-1301, USA.
+ */
 
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif
-
 
 #include <gnuradio/io_signature.h>
 #include <gnuradio/prefs.h>
@@ -29,6 +28,8 @@
 #include <cmath>
 #include <sys/time.h>
 #include "tag_decoder_impl.h"
+
+#define PREAMBLE_SEARCH_BIT_SIZE  (8)
 
 namespace gr
 {
@@ -52,6 +53,7 @@ namespace gr
     {
       char_bits = new char[128];
       n_samples_TAG_BIT = TPRI_D * s_rate / pow(10,6);
+      n_samples_T1  = T1_D * (sample_rate / pow(10,6));
     }
 
 
@@ -76,9 +78,19 @@ namespace gr
       float* out = (float *)output_items[0];
       int consumed = 0;
 
-      // Processing only after n_samples_to_ungate are available and we need to decode
-      if(ninput_items[0] >= reader_state->n_samples_to_ungate)
+      //find preamble at here
+      if(!flag_preamble && (ninput_items[0] >= (n_samples_TAG_BIT * (TAG_PREAMBLE_BITS + PREAMBLE_SEARCH_BIT_SIZE))))
       {
+        sample_information ys ((gr_complex*)input_items[0], ninput_items[0]);
+        index = tag_sync(&ys);
+        flag_preamble = true;
+      }
+
+      // Processing only after n_samples_to_ungate are available and we need to decode
+      if(flag_preamble && (ninput_items[0] >= reader_state->n_samples_to_ungate) && (reader_state->gate_status == GATE_CLOSED))
+      {
+        flag_preamble = false;
+
         int mode = -1;
         if(reader_state->decoder_status == DECODER_DECODE_RN16) mode = 1;
         else if(reader_state->decoder_status == DECODER_DECODE_EPC) mode = 2;
@@ -103,11 +115,6 @@ namespace gr
         debug_input(&ys, mode, current_round_slot);
 #endif
 
-        // detect preamble
-        int index;
-        if(mode == 1) index = tag_sync(&ys, RN16_BITS-1);
-        else if(mode == 2) index = tag_sync(&ys, EPC_BITS-1);
-
         if(index == -1)
         {
 #ifdef __DEBUG_LOG__
@@ -122,7 +129,6 @@ namespace gr
 #ifdef __DEBUG_LOG__
           log << "│ Preamble detected!" << std::endl;
 #endif
-
 
 #ifdef DEBUG_TAG_DECODER_IMPL_PREAMBLE
           debug_preamble(&ys, mode, current_round_slot, index);
@@ -156,7 +162,6 @@ namespace gr
     {
       std::vector<float> RN16_bits = tag_detection(ys, index, RN16_BITS-1);  // RN16_BITS includes one dummy bit
 
-
 #ifdef __DEBUG_LOG__
       // write RN16_bits to the next block
       log << "│ RN16=";
@@ -166,7 +171,6 @@ namespace gr
       for(int i=0 ; i<RN16_bits.size() ; i++)
       {
         out[written++] = RN16_bits[i];
-
 #ifdef __DEBUG_LOG__
         if(i % 4 == 0)
         {
@@ -192,7 +196,6 @@ namespace gr
 
       std::cout << "RN16 decoded | ";
       reader_state->gen2_logic_status = SEND_ACK;
-      
     }
 
 
@@ -204,13 +207,13 @@ namespace gr
       // convert EPC_bits from float to char in order to use Buettner's function
 
 #ifdef __DEBUG_LOG__
-     
+
       log << "│ EPC=";
       debug_log << "EPC=";
 
 #endif
 
-      for(int i=0 ; i<EPC_bits.size() ; i++)
+      for(unsigned int i=0 ; i<EPC_bits.size() ; i++)
       {
         char_bits[i] = EPC_bits[i] + '0';
 #ifdef __DEBUG_LOG__
@@ -290,30 +293,30 @@ namespace gr
       }
     }
 
-#ifdef DEBUG_TAG_DECODER_IMPL_INPUT
-    void tag_decoder_impl::debug_input(sample_information* ys, int mode, std::string current_round_slot)
-    {
-      std::string path;
-      if(mode == 1) path = (debug_folder_path+"RN16_input/"+current_round_slot).c_str();
-      else if(mode == 2) path = (debug_folder_path+"EPC_input/"+current_round_slot).c_str();
-      else return;
-
-      std::ofstream debug_i((path+"_I").c_str(), std::ios::app);
-      std::ofstream debug_q((path+"_Q").c_str(), std::ios::app);
-      std::ofstream debug(path, std::ios::app);
-
-      for(int i=0 ; i<ys->total_size() ; i++)
+#ifdef DEBUG_TAG_DECODER_
+    IMPL_INPUT
+      void tag_decoder_impl::debug_input(sample_information* ys, int mode, std::string current_round_slot)
       {
-        debug_i << ys->in(i).real() << " ";
-        debug_q << ys->in(i).imag() << " ";
-        debug << ys->norm_in(i) << " ";
-      }
+        std::string path;
+        if(mode == 1) path = (debug_folder_path+"RN16_input/"+current_round_slot).c_str();
+        else if(mode == 2) path = (debug_folder_path+"EPC_input/"+current_round_slot).c_str();
+        else return;
 
-      debug_i.close();
-      debug_q.close();
-      debug.close();
-    }
+        std::ofstream debug_i((path+"_I").c_str(), std::ios::app);
+        std::ofstream debug_q((path+"_Q").c_str(), std::ios::app);
+        std::ofstream debug(path, std::ios::app);
+
+        for(int i=0 ; i<ys->total_size() ; i++)
+        {
+          debug << ys->in(i);
+        }
+
+        debug_i.close();
+        debug_q.close();
+        debug.close();
+      }
 #endif
+
 
 #ifdef DEBUG_TAG_DECODER_IMPL_PREAMBLE
     void tag_decoder_impl::debug_preamble(sample_information* ys, int mode, std::string current_round_slot, int index)
@@ -329,9 +332,7 @@ namespace gr
 
       for(int i=-n_samples_TAG_BIT*TAG_PREAMBLE_BITS ; i<0 ; i++)
       {
-        debug_i << ys->in(index+i).real() << " ";
-        debug_q << ys->in(index+i).imag() << " ";
-        debug << ys->norm_in(index+i) << " ";
+        debug << ys->in(i+index).real()<<","<<ys->in(i+index).imag()<<std::endl;
       }
 
       debug_i.close();
@@ -339,6 +340,8 @@ namespace gr
       debug.close();
     }
 #endif
+
+
 
 #ifdef DEBUG_TAG_DECODER_IMPL_SAMPLE
     void tag_decoder_impl::debug_sample(sample_information* ys, int mode, std::string current_round_slot, int index)
@@ -352,11 +355,9 @@ namespace gr
       std::ofstream debug_q((path+"_Q").c_str(), std::ios::app);
       std::ofstream debug(path, std::ios::app);
 
-      for(int i=0 ; i<n_samples_TAG_BIT*(EPC_BITS-1) ; i++)
+      for(int i=0 ; i<n_samples_TAG_BIT*(RN16_BITS-1) ; i++)
       {
-        debug_i << ys->in(index+i).real() << " ";
-        debug_q << ys->in(index+i).imag() << " ";
-        debug << ys->norm_in(index+i) << " ";
+        debug << ys->in(i+index).real()<<","<<ys->in(i+index).imag()<<std::endl;
       }
 
       debug_i.close();

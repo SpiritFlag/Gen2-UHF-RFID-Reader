@@ -34,17 +34,20 @@ namespace gr {
     void initialize_reader_state()
     {
       reader_state = new READER_STATE;
+      
+      reader_state-> sent_bit.resize(256);
       reader_state-> reader_stats.n_queries_sent = 0;
       reader_state-> reader_stats.n_ack_sent = 0;
       reader_state-> reader_stats.n_epc_correct = 0;
 
       std::vector<int>  unique_tags_round;
-       std::map<int,int> tag_reads;
+      std::map<int,int> tag_reads;
 
       reader_state-> status           = RUNNING;
       reader_state-> gen2_logic_status= START;
       reader_state-> gate_status       = GATE_START;
       reader_state-> decoder_status   = DECODER_DECODE_RN16;
+      reader_state-> reader_sent_status = PREAMBLE;
 
       reader_state-> reader_stats.max_slot_number = pow(2,FIXED_Q);
 

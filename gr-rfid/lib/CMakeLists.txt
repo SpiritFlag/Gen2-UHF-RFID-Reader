@@ -28,6 +28,7 @@ link_directories(${Boost_LIBRARY_DIRS})
 list(APPEND rfid_sources
     global_vars.cc
     gate_impl.cc
+    gate_decoder.cc
     reader_impl.cc
     tag_decoder_impl.cc
     tag_decoder_class.cc
